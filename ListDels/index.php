@@ -7,7 +7,11 @@ $isLoggedIn = isset($_SESSION['user']);
 $user_id = isset($_SESSION['user']) ? intval($_SESSION['user']) : 0;
 
 $filter = isset($_GET['filter']) ? intval($_GET['filter']) : 3; // Значение по умолчанию - "Все"
-$searchQuery = isset($_POST['search']) ? trim(mysqli_real_escape_string($connect, $_POST['search'])) : ''; // Получаем строку поиска и экранируем
+$searchQuery = isset($_POST['search']) ? trim(mysqli_real_escape_string($connect, $_POST['search'])) : '';
+
+// Установка сортировки
+$sortOrder = isset($_GET['sort']) ? $_GET['sort'] : 'newest'; // "newest" по умолчанию
+$orderBy = $sortOrder === 'oldest' ? 'ASC' : 'DESC'; // Если "oldest", сортируем по возрастанию
 
 ?>
 
@@ -24,11 +28,14 @@ $searchQuery = isset($_POST['search']) ? trim(mysqli_real_escape_string($connect
     <?php endif; ?>
     <meta name='viewport' content='width=device-width, initial-scale=1'>
     <link rel='stylesheet' type='text/css' media='screen' href='design/css/main.css'>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
-    <? if ($isLoggedIn) { ?>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
+        crossorigin="anonymous"></script>
+    <?php if ($isLoggedIn) { ?>
         <script src='design/js/darkTheme.js' defer></script>
-    <? } ?>
+    <?php } ?>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 </head>
 
@@ -49,15 +56,16 @@ $searchQuery = isset($_POST['search']) ? trim(mysqli_real_escape_string($connect
             <button type="submit" id="btn-purple" class="btn btn-success">Регистрация</button>
         </form>
     <?php else: ?>
-        <!-- Ссылки для авторизованных пользователей -->
         <h1>TODO LIST</h1>
 
         <div id="contents-main">
             <div id="search-block">
                 <form action="" id="form-search" method="post">
                     <div style="position: relative;">
-                        <img src="img/search.svg" class="fa fa-search" style="position: absolute; top: 50%; right: 8px; transform: translateY(-50%);">
-                        <input placeholder="Search note..." id="search-input" type="text" name="search" style="padding-left: 30px;" value="<?= htmlspecialchars($searchQuery) ?>">
+                        <img src="img/search.svg" class="fa fa-search"
+                            style="position: absolute; top: 50%; right: 8px; transform: translateY(-50%);">
+                        <input placeholder="Поиск" id="search-input" type="text" name="search" style="padding-left: 30px;"
+                            value="<?= htmlspecialchars($searchQuery) ?>">
                     </div>
                 </form>
 
@@ -68,11 +76,17 @@ $searchQuery = isset($_POST['search']) ? trim(mysqli_real_escape_string($connect
                             <option value="1" <?= $filter == 1 ? 'selected' : '' ?>>Выполненные</option>
                             <option value="0" <?= $filter == 0 ? 'selected' : '' ?>>Не выполненные</option>
                         </select>
+                        <select class="form-select" id="sort-select" name="sort" aria-label="Сортировка по дате">
+                            <option value="newest" <?= $sortOrder == 'newest' ? 'selected' : '' ?>>Новое</option>
+                            <option value="oldest" <?= $sortOrder == 'oldest' ? 'selected' : '' ?>>Старое</option>
+                        </select>
                         <button class="btn btn-dark">Применить</button>
                     </form>
 
-                    <button id="btn-dark" onclick="toggleDarkTheme()" class="dark-moon-btn"><img src="img/moon.svg" alt=""></button>
-                    <button id="btn-sun" onclick="toggleDarkTheme()" class="dark-moon-btn"><img src="img/sun.svg" alt=""></button>
+                    <button accesskey="l" id="btn-dark" onclick="toggleDarkTheme()" class="dark-moon-btn"><img
+                            src="img/moon.svg" alt=""></button>
+                    <button id="btn-sun" onclick="toggleDarkTheme()" class="dark-moon-btn"><img src="img/sun.svg"
+                            alt=""></button>
                 </div>
             </div>
 
@@ -93,6 +107,9 @@ $searchQuery = isset($_POST['search']) ? trim(mysqli_real_escape_string($connect
                     $sql .= " AND (title LIKE '%$searchQuery%' OR description LIKE '%$searchQuery%')";
                 }
 
+                // Добавление сортировки по дате
+                $sql .= " ORDER BY created_at $orderBy";
+
                 $result = mysqli_query($connect, $sql);
 
                 if ($result && mysqli_num_rows($result) > 0) {
@@ -101,55 +118,77 @@ $searchQuery = isset($_POST['search']) ? trim(mysqli_real_escape_string($connect
                         $title = $row['title'];
                         $desc = $row['description'];
                         $completed = $row['is_completed'];
-                ?>
+
+                        $date = $row['created_at'];
+                        $date_update = $row['updated_at'];
+                        ?>
                         <div id="note" class="note1">
                             <div id="checkbox-content">
                                 <div id="title-content-and-desc">
-                                    <? if ($completed == 0) { ?>
-                                        <input onclick="location.href='tasks/checked.php?id=<? echo $num_task ?>'" type="checkbox" name="<?php echo $num_task; ?>" id="<?php echo $num_task; ?>">
-                                        <label for="<?php echo $num_task; ?>"><?php echo "NOTE #" . $num_task; ?></label>
-                                    <? } else if ($completed == 1) { ?>
-                                        <input checked disabled type="checkbox" name="<?php echo $num_task; ?>" id="<?php echo $num_task; ?>">
-                                        <label id="checked" for="<?php echo $num_task; ?>"><?php echo "NOTE #" . $num_task; ?></label>
-                                    <? } ?>
+                                    <?php if ($completed == 0) { ?>
+                                        <input onclick="location.href='tasks/checked.php?id=<?php echo $num_task ?>'" type="checkbox"
+                                            name="<?php echo $num_task; ?>" id="<?php echo $num_task; ?>">
+                                        <label for="<?php echo $num_task; ?>"><?php echo "Задача : " . $title; ?></label><br>
+                                        <textarea readonly placeholder="Описание: <?php echo $desc ?>" name="" id=""></textarea>
+                                        <p style="font-size: medium;"><i>Дата создания:<br> <? echo $date ?></i></p>
+                                        <p style="font-size: medium;"><i>Дата обновления:<br> <? echo $date_update ?></i></p>
+
+                                    <?php } else if ($completed == 1) { ?>
+                                            <input checked disabled type="checkbox" name="<?php echo $num_task; ?>"
+                                                id="<?php echo $num_task; ?>">
+                                            <label id="checked" for="<?php echo $num_task; ?>"><?php echo "Задача : " . $title; ?></label>
+                                            <p style="font-size: medium;"><i>Дата создания:<br> <? echo $date ?></i></p>
+                                            <p style="font-size: medium;"><i>Дата обновления:<br> <? echo $date_update ?></i></p>
+                                    <?php } ?>
                                 </div>
 
-                                <? if (isset($_GET['edit' . $num_task])) { ?>
+                                <?php if (isset($_GET['edit' . $num_task])) { ?>
                                     <form action="tasks/edit-note.php" method="post">
                                         <input type="hidden" name="id" value="<?php echo $num_task; ?>">
-                                        <? if ($completed == 0) { ?>
-                                            <input type="text" placeholder="<? echo "Заголовок" ?>" value="<? echo $title ?>" name="new-title" id="new-title">
-                                            <textarea name="desc" placeholder="<?php echo htmlspecialchars("Описание"); ?>" id="checkbox1"><? echo $desc ?></textarea>
+                                        <?php if ($completed == 0) { ?>
+                                            <label for="new-title">Новый заголовок :</label>
+                                            <input type="text" placeholder="<?php echo "Заголовок : $title" ?>" name="new-title"
+                                                id="new-title">
+                                            <label for="new-desc">Новое описание :</label>
+                                            <textarea name="desc" placeholder="<?php echo htmlspecialchars("Описание : $desc"); ?>"
+                                                id="checkbox1"></textarea>
                                             <button type="submit" id="btn-purple" class="btn btn-primary">Сохранить изменения</button>
                                             <a href="../" class="btn btn-danger">Скрыть</a>
-                                        <? } else if ($completed == 1) { ?>
-                                            <input readonly type="text" placeholder="<? echo "Заголовок" ?>" value="<? echo $title ?>" name="new-title" id="new-title">
-                                            <textarea readonly name="desc" placeholder="<?php echo htmlspecialchars("Описание"); ?>" id="checkbox1"><? echo $desc ?></textarea>
-                                        <? } ?>
+                                        <?php } else if ($completed == 1) { ?>
+                                                <label for="new-title">Задача :</label>
+                                                <input readonly type="text" placeholder="<?php echo "Заголовок" ?>" value="<?php echo $title ?>"
+                                                    name="new-title" id="new-title">
+                                                <label for="new-title">Описание :</label>
+                                                <textarea readonly name="desc" placeholder="<?php echo htmlspecialchars("Описание"); ?>"
+                                                    id="checkbox1"><?php echo $desc ?></textarea>
+                                        <?php } ?>
                                     </form>
-                                <? } ?>
+                                <?php } ?>
                             </div>
 
-                            <? if ($completed == 0) { ?>
+                            <?php if ($completed == 0) { ?>
                                 <div id="edit-and-delete">
-                                    <img onclick="location.href='?edit<? echo $num_task ?>'" id="edit" class="edit_btn" src="img/edit.svg" alt="">
-                                    <img onclick="location.href='tasks/delete-note.php?id=<? echo $num_task ?>'" id="delete" class="delete_btn" src="img/delete.svg" alt="">
+                                    <img onclick="location.href='?edit<?php echo $num_task ?>'" id="edit" class="edit_btn"
+                                        src="img/edit.svg" alt="">
+                                    <img onclick="location.href='tasks/delete-note.php?id=<?php echo $num_task ?>'" id="delete"
+                                        class="delete_btn" src="img/delete.svg" alt="">
                                 </div>
-                            <? } else if ($completed == 1) { ?>
-                                <div id="edit-and-delete">
-                                    <div id="img-contents">
-                                        <img id="edit" class="edit_btn_disabled" src="img/edit.svg" alt="">
-                                        <img id="delete" class="delete_btn_disabled" src="img/delete.svg" alt="">
-                                        <? if (isset($_GET['edit' . $num_task])) { ?>
-                                            <a href="../" class="btn btn-danger">Скрыть</a>
-                                        <? } else { ?>
-                                            <button onclick="location.href='?edit<? echo $num_task ?>'" id="btn-purple" class="btn btn-dark" alt="">Показать</button>
-                                        <? } ?>
+                            <?php } else if ($completed == 1) { ?>
+                                    <div id="edit-and-delete">
+                                        <div id="img-contents">
+                                            <img id="edit" class="edit_btn_disabled" src="img/edit.svg" alt="">
+                                            <img id="delete" class="delete_btn_disabled" src="img/delete.svg" alt="">
+                                        <?php if (isset($_GET['edit' . $num_task])) { ?>
+                                                <a href="../" class="btn btn-danger">Скрыть</a>
+                                        <?php } else { ?>
+                                                <button onclick="location.href='?edit<?php echo $num_task ?>'" id="btn-purple"
+                                                    class="btn btn-dark" alt="">Показать</button>
+                                        <?php } ?>
+                                        </div>
                                     </div>
-                                </div>
-                            <? } ?>
+                            <?php } ?>
                         </div>
-                <?php
+                        <?php
                     }
                 } else {
                     echo "Записей нет";
@@ -158,7 +197,7 @@ $searchQuery = isset($_POST['search']) ? trim(mysqli_real_escape_string($connect
             </div>
 
             <div class="block-add-note">
-                <button type="button" class="add-note" data-bs-toggle="modal" data-bs-target="#NewNoteModal">
+                <button accesskey="j" type="button" class="add-note" data-bs-toggle="modal" data-bs-target="#NewNoteModal">
                     <h1>+</h1>
                 </button>
             </div>
@@ -169,16 +208,18 @@ $searchQuery = isset($_POST['search']) ? trim(mysqli_real_escape_string($connect
             <div class="modal-dialog">
                 <div class="modal-content">
                     <div class="modal-header">
-                        <h1 style="color: black;" class="modal-title fs-5" id="exampleModalLabel">NEW NOTE</h1>
+                        <h1 style="color: black;" class="modal-title fs-5" id="exampleModalLabel">Новая заметка</h1>
                     </div>
                     <div class="modal-body">
                         <div id="new-note-contents">
                             <form action="tasks/new-note.php" method="post" id="new-note-add">
-                                <input type="text" class="mb-3" placeholder="Input your note..." name="new-task" id="new-task">
-                                <textarea class="mb-3" placeholder="Input your desc" name="desc" id="desc"></textarea>
+                                <input type="text" class="mb-3" placeholder="Введите название" name="new-task"
+                                    id="new-task">
+                                <textarea class="mb-3" placeholder="Введите описание" name="desc" id="desc"></textarea>
                                 <div id="btn-content-cancel-apply">
-                                    <button id="btn-purple" class="btn btn-primary" type="button" data-bs-dismiss="modal" aria-label="Close">CANCEL</button>
-                                    <button id="btn-purple" class="btn btn-primary">APPLY</button>
+                                    <button id="btn-purple" class="btn btn-primary" type="button" data-bs-dismiss="modal"
+                                        aria-label="Close">Отмена</button>
+                                    <button id="btn-purple" class="btn btn-primary">Применить</button>
                                 </div>
                             </form>
                         </div>
@@ -188,6 +229,8 @@ $searchQuery = isset($_POST['search']) ? trim(mysqli_real_escape_string($connect
         </div>
 
     <?php endif; ?>
+
+    </script>
 </body>
 
 </html>
