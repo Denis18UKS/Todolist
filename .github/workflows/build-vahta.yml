@@ -1,0 +1,43 @@
+name: Build Vahta APK
+on:
+  push:
+    branches: [chatgpt-vahta-android-build]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: vahta-motivator-android
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android platform
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Restore offline UI
+        run: base64 -d app/src/main/assets/index.html.gz.b64 | gzip -d > app/src/main/assets/index.html
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Build debug APK
+        run: gradle :app:assembleDebug --stacktrace
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: SmenaLet-APK
+          path: vahta-motivator-android/app/build/outputs/apk/debug/app-debug.apk
