@@ -2,6 +2,8 @@ name: Build Vahta APK
 on:
   push:
     branches: [chatgpt-vahta-android-build]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 jobs:
