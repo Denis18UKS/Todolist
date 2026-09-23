@@ -31,6 +31,11 @@ jobs:
       - name: Restore offline UI
         run: base64 -d app/src/main/assets/index.html.gz.b64 | gzip -d > app/src/main/assets/index.html
 
+      - name: Restore launcher artwork
+        run: |
+          mkdir -p app/src/main/res/drawable-nodpi
+          base64 -d app/src/main/icon.webp.b64 > app/src/main/res/drawable-nodpi/ic_launcher_art.webp
+
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
@@ -39,8 +44,15 @@ jobs:
       - name: Build debug APK
         run: gradle :app:assembleDebug --stacktrace
 
+      - name: Export apksigner
+        run: |
+          mkdir -p build-tools-export
+          cp "$ANDROID_HOME/build-tools/35.0.0/lib/apksigner.jar" build-tools-export/apksigner.jar
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: SmenaLet-APK
-          path: vahta-motivator-android/app/build/outputs/apk/debug/app-debug.apk
+          path: |
+            vahta-motivator-android/app/build/outputs/apk/debug/app-debug.apk
+            vahta-motivator-android/build-tools-export/apksigner.jar
